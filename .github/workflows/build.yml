@@ -1,4 +1,4 @@
-name: Build AmpProfiler Plugin
+name: Build AmpProfiler Plugin (Cross-Platform)
 
 on:
   push:
@@ -8,7 +8,12 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    name: Build on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+
     steps:
       - name: Check out repo
         uses: actions/checkout@v3
@@ -18,18 +23,24 @@ jobs:
         with:
           cmake-version: '3.27.7'
 
-      - name: Install dependencies
+      - name: Install dependencies (Linux only)
+        if: matrix.os == 'ubuntu-latest'
         run: sudo apt-get update && sudo apt-get install -y build-essential
 
-      - name: Build project
+      - name: Configure CMake
         run: |
           mkdir build
           cd build
-          cmake ..
+          cmake .. -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build plugin
+        run: |
+          cd build
           cmake --build . --config Release
 
       - name: Upload built plugin
         uses: actions/upload-artifact@v3
         with:
-          name: AmpProfiler-Plugins
-          path: build/**/*.vst3
+          name: AmpProfiler-${{ matrix.os }}
+          path: |
+            build/**/*.vst3
