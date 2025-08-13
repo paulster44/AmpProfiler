@@ -74,15 +74,17 @@ void AmpProfilerAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, 
     {   juce::dsp::AudioBlock<float> inBlk(monoIn); auto up = oversampling->processSamplesUp(inBlk);
         upA.copyFrom(0,0, up.getChannelPointer(0), up.getNumSamples());
         modelA.process(upA.getWritePointer(0), upA.getNumSamples());
-        juce::dsp::AudioBlock<float> upBlk(upA); auto down = oversampling->processSamplesDown(upBlk);
-        downA.copyFrom(0,0, down.getChannelPointer(0), N);
+        juce::dsp::AudioBlock<float> upBlk(upA);
+		oversampling->processSamplesDown(upBlk);                   // in-place
+		downA.copyFrom(0,0, upBlk.getChannelPointer(0), N);
     }
     if (modelBFile.existsAsFile()) {
         juce::dsp::AudioBlock<float> inBlk(monoIn); auto up = oversampling->processSamplesUp(inBlk);
         upB.copyFrom(0,0, up.getChannelPointer(0), up.getNumSamples());
         modelB.process(upB.getWritePointer(0), upB.getNumSamples());
-        juce::dsp::AudioBlock<float> upBlk(upB); auto down = oversampling->processSamplesDown(upBlk);
-        downB.copyFrom(0,0, down.getChannelPointer(0), N);
+        juce::dsp::AudioBlock<float> upBlk(upB);
+		oversampling->processSamplesDown(upBlk);                   // in-place
+		downB.copyFrom(0,0, upBlk.getChannelPointer(0), N);
     } else downB.makeCopyOf(downA);
     bool cabOn = apvts->getRawParameterValue("cabOn")->load() > 0.5f;
     if (cabOn) { if (cabA) cabA->process(downA.getWritePointer(0), N); if (cabB) cabB->process(downB.getWritePointer(0), N); }
