@@ -15,40 +15,29 @@ jobs:
         os: [ubuntu-latest, windows-latest, macos-latest]
 
     env:
-      # 👇👇 CHANGE THIS to the folder that actually contains CMakeLists.txt
-      SOURCE_DIR: AmpProfiler
+      SOURCE_DIR: AmpProfiler/AmpProfiler/plugin   # <- your CMakeLists.txt folder
       BUILD_DIR: build
 
     steps:
       - name: Check out repo (with submodules)
         uses: actions/checkout@v4
         with:
-          submodules: recursive   # pulls JUCE/VST3 SDK if included as submodules
+          submodules: recursive
 
       - name: Set up CMake
         uses: jwlawson/actions-setup-cmake@v1.13
         with:
           cmake-version: '3.27.7'
 
-      # Toolchain bits
       - name: Install dependencies (Linux only)
         if: matrix.os == 'ubuntu-latest'
         run: sudo apt-get update && sudo apt-get install -y build-essential pkg-config
-
-      - name: Show tree for debugging
-        shell: bash
-        run: |
-          echo "Repo root structure:"
-          ls -la
-          echo "SOURCE_DIR=$SOURCE_DIR contents:"
-          ls -la "$SOURCE_DIR" || true
 
       - name: Verify CMakeLists exists
         shell: bash
         run: |
           test -f "$SOURCE_DIR/CMakeLists.txt" || { 
-            echo "::error file=$SOURCE_DIR::CMakeLists.txt not found. Set SOURCE_DIR to the folder that contains it."; 
-            exit 1; 
+            echo "::error file=$SOURCE_DIR::CMakeLists.txt not found."; exit 1; 
           }
 
       - name: Configure CMake
@@ -76,7 +65,6 @@ jobs:
           done
           if [ -z "$vst3_found" ]; then
             echo "::error::No .vst3 produced under $BUILD_DIR/**.vst3"
-            echo "==== Build dir listing ===="
             ls -R "$BUILD_DIR" || true
             exit 1
           fi
