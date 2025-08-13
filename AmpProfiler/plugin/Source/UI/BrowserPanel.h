@@ -1,33 +1,46 @@
-// BrowserPanel.h
+// plugin/Source/UI/BrowserPanel.h
 #pragma once
-#include <juce_gui_basics/juce_gui_basics.h>
-#include "../Profiles/ProfileManager.h"
-#include "../Profiles/CabManager.h"
+#include <JuceHeader.h>
 #include "BrowseList.h"
 
-// A left-side panel with tabs for Profiles & Cabinets.
-// Exposes two callbacks to your editor/processor when the user selects files.
+class AmpProfilerAudioProcessor;
+
+/** Simple two-tab browser: Profiles and Cabinets. */
 class BrowserPanel : public juce::Component
 {
 public:
-    using SelectFn = std::function<void(const juce::File&)>;
-
-    BrowserPanel (ProfileManager& pm, CabManager& cm,
-                  SelectFn onProfile, SelectFn onCab)
-        : tabs(juce::TabbedButtonBar::TabsAtTop),
-          profiles(pm, "Profiles", std::move(onProfile)),
-          cabs(cm, "Cabinets", std::move(onCab))
+    explicit BrowserPanel (AmpProfilerAudioProcessor& p)
+        : proc (p),
+          tabs (juce::TabbedButtonBar::TabsAtTop)   // constructor takes orientation only
     {
-        addAndMakeVisible(tabs);
-        tabs.addTab("Profiles", juce::Colours::transparentBlack, &profiles, false);
-        tabs.addTab("Cabinets", juce::Colours::transparentBlack, &cabs, false);
-        tabs.setTabBarDepth(32);
+        // Build pages
+        profilePage = std::make_unique<BrowseList> (proc);
+        profilePage->setName ("Profiles");
+
+        cabPage = std::make_unique<BrowseList> (proc);
+        cabPage->setName ("Cabinets");
+
+        // Add tabs – TabbedComponent takes ownership when deleteComponentWhenNotNeeded = true
+        tabs.addTab ("Profiles", juce::Colours::transparentBlack, profilePage.release(), true);
+        tabs.addTab ("Cabinets", juce::Colours::transparentBlack, cabPage.release(), true);
+
+        addAndMakeVisible (tabs);
     }
 
-    void resized() override { tabs.setBounds(getLocalBounds()); }
+    void resized() override
+    {
+        tabs.setBounds (getLocalBounds());
+    }
 
 private:
+    AmpProfilerAudioProcessor& proc;
+
+    // DO NOT brace-initialise here; we already initialise in the ctor init-list.
     juce::TabbedComponent tabs;
-    BrowseList<ProfileManager> profiles;
-    BrowseList<CabManager>     cabs;
+
+    // Temporary owners until we hand pages to the TabbedComponent
+    std::unique_ptr<BrowseList> profilePage, cabPage;
+
+    JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (BrowserPanel)
 };
+
