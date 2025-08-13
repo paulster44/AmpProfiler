@@ -3,6 +3,7 @@
 #include <JuceHeader.h>
 #include <array>
 #include <cstring>
+#include <string>
 
 class OnnxModel {
 public:
@@ -14,13 +15,16 @@ public:
         Ort::SessionOptions opt;
         opt.SetGraphOptimizationLevel(GraphOptimizationLevel::ORT_ENABLE_ALL);
 
-        // ONNX Runtime wants a wide-char path on Windows, UTF-8 elsewhere
+        // Build a path string with the exact type ORT expects on this platform
+        using ort_char_t = ORTCHAR_T;
+        std::basic_string<ort_char_t> modelPath;
        #if defined(_WIN32)
-        const wchar_t* modelPath = onnxFile.getFullPathName().toWideCharPointer();
+        modelPath = std::wstring(onnxFile.getFullPathName().toWideCharPointer());
        #else
-        const char*    modelPath = onnxFile.getFullPathName().toRawUTF8();
+        modelPath = std::string(onnxFile.getFullPathName().toRawUTF8());
        #endif
-        session = std::make_unique<Ort::Session>(*env, modelPath, opt);
+
+        session = std::make_unique<Ort::Session>(*env, modelPath.c_str(), opt);
 
         Ort::AllocatorWithDefaultOptions alloc;
         inputName  = session->GetInputNameAllocated(0, alloc).get();

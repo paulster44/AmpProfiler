@@ -40,6 +40,9 @@ endif()
 # -----------------------
 # JUCE plugin target
 # -----------------------
+set(AMPPLUGIN_FORMATS VST3)
+# If you're NOT on CI, you can enable AU locally by adding AU to the list above.
+
 juce_add_plugin(AmpProfiler
     COMPANY_NAME "YourName"
     BUNDLE_ID com.yourname.ampprofiler
@@ -47,11 +50,11 @@ juce_add_plugin(AmpProfiler
     NEEDS_MIDI_INPUT FALSE
     NEEDS_MIDI_OUTPUT FALSE
     MICROPHONE_PERMISSION_ENABLED TRUE
-    FORMATS VST3              # keep CI simple; add AU locally if desired
+    FORMATS ${AMPPLUGIN_FORMATS}
     PRODUCT_NAME "AmpProfiler"
 )
 
-# Generate JuceHeader.h (required if your sources include it)
+# Generate JuceHeader.h
 juce_generate_juce_header(AmpProfiler)
 
 # -----------------------
@@ -84,24 +87,27 @@ target_link_libraries(AmpProfiler PRIVATE
 )
 
 # -----------------------
-# Post-build: copy resources if they exist
+# Post-build: copy resources (skip Models in CI)
 # -----------------------
-# Ensure destination exists
+# Always ensure the destination exists so other copies succeed
 add_custom_command(TARGET AmpProfiler POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_FILE_DIR:AmpProfiler>/Models"
+    COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_FILE_DIR:AmpProfiler>"
 )
 
-# Copy Models folder (guard if it exists)
-if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/Source/Models")
-  add_custom_command(TARGET AmpProfiler POST_BUILD
+# Only copy the Models directory when not running in GitHub Actions CI
+if(NOT DEFINED ENV{GITHUB_ACTIONS})
+  if (EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/Source/Models")
+    add_custom_command(TARGET AmpProfiler POST_BUILD
+      COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_FILE_DIR:AmpProfiler>/Models"
       COMMAND ${CMAKE_COMMAND} -E copy_directory
               "${CMAKE_CURRENT_SOURCE_DIR}/Source/Models"
               "$<TARGET_FILE_DIR:AmpProfiler>/Models"
       COMMENT "Copying Models directory"
-  )
+    )
+  endif()
 endif()
 
-# Copy default IR (guard if it exists)
+# Copy default IR if present (this one is safe to do in CI)
 if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/resources/default_cab_ir.wav")
   add_custom_command(TARGET AmpProfiler POST_BUILD
       COMMAND ${CMAKE_COMMAND} -E copy_if_different
