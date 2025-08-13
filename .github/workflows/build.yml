@@ -31,7 +31,7 @@ jobs:
         run: |
           mkdir build
           cd build
-          cmake .. -DCMAKE_BUILD_TYPE=Release
+          cmake ../AmpProfiler -DCMAKE_BUILD_TYPE=Release
 
       - name: Build plugin
         run: |
