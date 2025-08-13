@@ -1,24 +1,23 @@
 #pragma once
 
 #include <JuceHeader.h>
+#include <vector>
 #include "Dsp/OnnxModel.h"
+#include "Dsp/PartitionedConvolver.h"
 
-//==============================================================================
 // Forward declaration of your editor (defined in PluginEditor.h)
 class AmpProfilerAudioProcessorEditor;
 
-//==============================================================================
 // Main processor
 class AmpProfilerAudioProcessor : public juce::AudioProcessor
 {
 public:
     AmpProfilerAudioProcessor();
-    ~AmpProfilerAudioProcessor() override;
+    ~AmpProfilerAudioProcessor() override = default;
 
-    //==============================================================================
     // AudioProcessor overrides
     void prepareToPlay (double sampleRate, int samplesPerBlock) override;
-    void releaseResources() override;
+    void releaseResources() override {}
     bool isBusesLayoutSupported (const BusesLayout& layouts) const override;
     void processBlock (juce::AudioBuffer<float>&, juce::MidiBuffer&) override;
 
@@ -48,16 +47,36 @@ public:
     juce::AudioProcessorValueTreeState& getVTS()          { return apvts; }
 
 private:
-    // Build the parameter layout (defined in .cpp)
+    // ---- Parameters ----
     static juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout();
-
-    // Parameters
     juce::AudioProcessorValueTreeState apvts { *this, nullptr, "PARAMS", createParameterLayout() };
 
+    // ---- Oversampling helpers ----
+    void rebuildOversampling (int factor, int samplesPerBlock);
+    int  resolveOS() const;
+
+    // ---- Asset loading ----
+    void loadAssets();
+    void loadProfile();
+
+    // Profile for oversampling defaults/allowlist
+    struct Profile {
+        int osDefault = 1;              // default to 1x unless profile.json overrides
+        std::vector<int> osAllowed { 1, 2, 4 };
+    } profile;
+
+    // Files discovered next to the built plugin
+    juce::File modelAFile, modelBFile, cabAFile, cabBFile, profileFile;
+
     // DSP
-    std::unique_ptr<juce::dsp::Oversampling<float>> oversampling;  // configured in prepareToPlay
-    OnnxModel model;                                               // ONNX runtime wrapper
-    juce::dsp::ProcessSpec spec {};                                // cached spec
+    std::unique_ptr<juce::dsp::Oversampling<float>> oversampling; // configured in prepareToPlay
+    int currentOS = 1; // 1x/2x/4x
+
+    OnnxModel modelA, modelB;
+    std::unique_ptr<PartitionedConvolver> cabA, cabB;
+
+    // Working buffers
+    juce::AudioBuffer<float> monoIn, upA, upB, downA, downB;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (AmpProfilerAudioProcessor)
 };
