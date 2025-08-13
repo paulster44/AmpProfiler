@@ -16,7 +16,7 @@ jobs:
 
     steps:
       - name: Check out repo
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Set up CMake
         uses: jwlawson/actions-setup-cmake@v1.13
@@ -39,7 +39,7 @@ jobs:
           cmake --build . --config Release
 
       - name: Upload built plugin
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: AmpProfiler-${{ matrix.os }}
           path: |
