@@ -12,12 +12,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
-
-    env:
-      SOURCE_DIR: AmpProfiler/plugin
-      BUILD_DIR: build
-      ORT_VERSION: 1.17.0
+        os: [ubuntu-latest, macos-latest, windows-latest]
 
     steps:
       - name: Check out repo (with submodules)
@@ -30,111 +25,79 @@ jobs:
         with:
           cmake-version: '3.27.7'
 
-      # Linux build prerequisites for JUCE (Ubuntu 24.04 compatible)
+      # ---------- deps / ONNX Runtime ----------
       - name: Install dependencies (Linux only)
         if: matrix.os == 'ubuntu-latest'
         run: |
-          set -e
           sudo apt-get update
-          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y \
-            build-essential pkg-config curl tar unzip \
-            libx11-dev libxrandr-dev libxinerama-dev libxcursor-dev libxext-dev \
-            libxcomposite-dev libxrender-dev libxfixes-dev \
-            libxkbcommon-dev libxkbcommon-x11-dev \
-            libfreetype6-dev libgl1-mesa-dev libglu1-mesa-dev \
-            libasound2-dev libjack-jackd2-dev \
-            libcurl4-openssl-dev \
-            libgtk-3-dev
-          # webkit changed name in Ubuntu 24.04; try 4.0 first then 4.1
-          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y libwebkit2gtk-4.0-dev || \
-          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y libwebkit2gtk-4.1-dev
+          sudo apt-get install -y build-essential libcurl4-openssl-dev zip
 
-      # ---- ONNX Runtime downloads ----
       - name: Get ONNX Runtime (Linux)
         if: matrix.os == 'ubuntu-latest'
         shell: bash
         run: |
-          set -e
-          cd "$RUNNER_TEMP"
-          curl -L -o ort.tgz "https://github.com/microsoft/onnxruntime/releases/download/v${ORT_VERSION}/onnxruntime-linux-x64-${ORT_VERSION}.tgz"
-          mkdir -p ort && tar -xzf ort.tgz -C ort --strip-components=1
-          echo "ONNXRUNTIME_ROOT=$RUNNER_TEMP/ort" >> $GITHUB_ENV
+          set -euo pipefail
+          ver=1.18.0
+          curl -L -o ort.tgz https://github.com/microsoft/onnxruntime/releases/download/v${ver}/onnxruntime-linux-x64-${ver}.tgz
+          tar xf ort.tgz
+          echo "ONNXRUNTIME_ROOT=$PWD/onnxruntime-linux-x64-${ver}" >> $GITHUB_ENV
 
       - name: Get ONNX Runtime (macOS)
         if: matrix.os == 'macos-latest'
         shell: bash
         run: |
-          set -e
-          cd "$RUNNER_TEMP"
-          curl -L -o ort.tgz "https://github.com/microsoft/onnxruntime/releases/download/v${ORT_VERSION}/onnxruntime-osx-universal2-${ORT_VERSION}.tgz"
-          mkdir -p ort && tar -xzf ort.tgz -C ort --strip-components=1
-          echo "ONNXRUNTIME_ROOT=$RUNNER_TEMP/ort" >> $GITHUB_ENV
-          # Build only for the runner arch to avoid universal headaches
-          echo "EXTRA_CMAKE=-DCMAKE_OSX_ARCHITECTURES=$(uname -m)" >> $GITHUB_ENV
+          set -euo pipefail
+          ver=1.18.0
+          curl -L -o ort.tgz https://github.com/microsoft/onnxruntime/releases/download/v${ver}/onnxruntime-osx-universal2-${ver}.tgz
+          tar xf ort.tgz
+          echo "ONNXRUNTIME_ROOT=$PWD/onnxruntime-osx-universal2-${ver}" >> $GITHUB_ENV
 
       - name: Get ONNX Runtime (Windows)
         if: matrix.os == 'windows-latest'
         shell: pwsh
         run: |
-          $ErrorActionPreference = "Stop"
-          $tmp = $env:RUNNER_TEMP
-          $ver = "${{ env.ORT_VERSION }}"
-          $url = "https://github.com/microsoft/onnxruntime/releases/download/v$ver/onnxruntime-win-x64-$ver.zip"
-          Invoke-WebRequest $url -OutFile "$tmp\ort.zip"
-          Expand-Archive -Path "$tmp\ort.zip" -DestinationPath "$tmp\ort" -Force
-          $sub = Get-ChildItem "$tmp\ort" | Where-Object { $_.PSIsContainer } | Select-Object -First 1
-          if ($sub) { Copy-Item "$($sub.FullName)\*" "$tmp\ort" -Recurse -Force }
-          Add-Content $env:GITHUB_ENV "ONNXRUNTIME_ROOT=$tmp\ort"
+          $ver = '1.18.0'
+          Invoke-WebRequest -OutFile ort.zip -Uri "https://github.com/microsoft/onnxruntime/releases/download/v$ver/onnxruntime-win-x64-$ver.zip"
+          Expand-Archive -Path ort.zip -DestinationPath .
+          echo "ONNXRUNTIME_ROOT=$PWD\onnxruntime-win-x64-$ver" >> $env:GITHUB_ENV
 
-      # ---- Build ----
-      - name: Verify CMakeLists exists
-        shell: bash
-        run: |
-          echo "SOURCE_DIR=$SOURCE_DIR"
-          test -f "$SOURCE_DIR/CMakeLists.txt" || { 
-            echo "::error file=$SOURCE_DIR::CMakeLists.txt not found. Check SOURCE_DIR."; 
-            exit 1; 
-          }
-
+      # ---------- configure & build ----------
       - name: Configure CMake
         shell: bash
-        run: |
-          mkdir -p "$BUILD_DIR"
-          cd "$BUILD_DIR"
-          cmake "../$SOURCE_DIR" \
-            -DCMAKE_BUILD_TYPE=Release \
-            -DONNXRUNTIME_ROOT="${ONNXRUNTIME_ROOT}" \
-            ${EXTRA_CMAKE-}
+        run: cmake -S . -B build -D CMAKE_BUILD_TYPE=Release
 
       - name: Build plugin
         shell: bash
-        run: |
-          cd "$BUILD_DIR"
-          cmake --build . --config Release
+        run: cmake --build build --config Release --parallel
 
-      # ---- Package & Upload ----
-      - name: Package plugin (.zip)
+      # ---------- package ----------
+      - name: Package plugin (.zip) – macOS & Linux
+        if: matrix.os != 'windows-latest'
         shell: bash
         run: |
-          set -e
-          mkdir -p packages
-          shopt -s globstar nullglob
-          vst3_found=""
-          for f in "$BUILD_DIR"/**/*.vst3; do
-            vst3_found="$f"; break
-          done
-          if [ -z "$vst3_found" ]; then
-            echo "::error::No .vst3 produced under $BUILD_DIR/**.vst3"
-            ls -R "$BUILD_DIR" || true
+          set -euo pipefail
+          SRC="build/AmpProfiler_artefacts/Release/VST3/AmpProfiler.vst3"
+          OUT="AmpProfiler-${{ matrix.os }}.zip"
+          if [ ! -e "$SRC" ]; then
+            echo "::error::VST3 not found at $SRC"
+            ls -la build || true
             exit 1
           fi
-          echo "Found VST3: $vst3_found"
-          cp -R "$vst3_found" "packages/AmpProfiler-${{ matrix.os }}.vst3"
-          (cd packages && zip -r "AmpProfiler-${{ matrix.os }}.zip" "AmpProfiler-${{ matrix.os }}.vst3")
+          /usr/bin/zip -r "$OUT" "$SRC"
+
+      - name: Package plugin (.zip) – Windows
+        if: matrix.os == 'windows-latest'
+        shell: pwsh
+        run: |
+          $src = "build/AmpProfiler_artefacts/Release/VST3/AmpProfiler.vst3"
+          if (-not (Test-Path $src)) {
+            Write-Error "VST3 not found at $src"
+          }
+          Compress-Archive -Path $src -DestinationPath "AmpProfiler-windows-latest.zip" -Force
 
       - name: Upload artifact (zip)
         uses: actions/upload-artifact@v4
         with:
           name: AmpProfiler-${{ matrix.os }}
-          path: packages/AmpProfiler-${{ matrix.os }}.zip
-          if-no-files-found: error
+          path: |
+            *.zip
