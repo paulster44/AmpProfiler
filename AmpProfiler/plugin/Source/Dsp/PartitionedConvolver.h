@@ -15,7 +15,8 @@ public:
         juce::dsp::ProcessSpec spec { (double)sampleRate, 512, 1 }; conv.prepare(spec);
     }
     void process(float* mono, int num) {
-        juce::AudioBuffer<float> buf(mono, 1, num);
+        juce::AudioBuffer<float> buf(1, num);     // make a 1-channel buffer
+		buf.copyFrom(0, 0, mono, num);            // copy from raw pointer (4-arg overload)
         juce::dsp::AudioBlock<float> blk(buf);
         juce::dsp::ProcessContextReplacing<float> ctx(blk);
         conv.process(ctx);
