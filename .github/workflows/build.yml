@@ -15,7 +15,7 @@ jobs:
         os: [ubuntu-latest, windows-latest, macos-latest]
 
     env:
-      SOURCE_DIR: AmpProfiler/AmpProfiler/plugin   # <- your CMakeLists.txt folder
+      SOURCE_DIR: AmpProfiler/plugin   # <- your CMakeLists.txt folder
       BUILD_DIR: build
 
     steps:
