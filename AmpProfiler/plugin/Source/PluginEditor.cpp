@@ -1,42 +1,42 @@
+// PluginEditor.cpp
 #include "PluginEditor.h"
-#include "PluginProcessor.h"  // for AmpProfilerAudioProcessor & getVTS()
 
-// Handy alias
-using APVTS = juce::AudioProcessorValueTreeState;
+//==============================================================================
 
 AmpProfilerAudioProcessorEditor::AmpProfilerAudioProcessorEditor (AmpProfilerAudioProcessor& p)
-: juce::AudioProcessorEditor (&p), proc (p)
+    : AudioProcessorEditor (&p), proc (p)
 {
-    setSize (420, 180);
+    setResizable (true, true);
+    setSize (780, 420);
 
-    // Controls
-    addAndMakeVisible (inTrim);
-    inTrim.setTextValueSuffix (" dB");
-    inTrim.setRange (-24.0, 24.0, 0.1);
+    // Minimal styling for your existing controls so this file is drop-in safe.
+    for (auto* s : { &inTrim, &outTrim, &morph })
+    {
+        addAndMakeVisible (*s);
+        s->setTextBoxStyle (juce::Slider::NoTextBox, false, 0, 0);
+    }
 
-    addAndMakeVisible (outTrim);
-    outTrim.setTextValueSuffix (" dB");
-    outTrim.setRange (-24.0, 24.0, 0.1);
-
-    addAndMakeVisible (morph);
-    morph.setRange (0.0, 1.0, 0.001);
-
-    addAndMakeVisible (cabToggle);
-
-    osBox.addItem ("Auto", 1);
-    osBox.addItem ("1x",  2);
-    osBox.addItem ("2x",  3);
-    osBox.addItem ("4x",  4);
     addAndMakeVisible (osBox);
+    addAndMakeVisible (cabToggle);
+    osBox.addItemList (juce::StringArray{ "Auto", "1x", "2x", "4x" }, 1);
+    osBox.setSelectedId (1, juce::dontSendNotification);
+    cabToggle.setButtonText ("Cab");
 
-    // Attachments (bind to the processor's APVTS)
-    auto& vts = proc.getVTS();
-    inAttach    = std::make_unique<APVTS::SliderAttachment>   (vts, "inTrim", inTrim);
-    outAttach   = std::make_unique<APVTS::SliderAttachment>   (vts, "outTrim", outTrim);
-    morphAttach = std::make_unique<APVTS::SliderAttachment>   (vts, "morph",  morph);
-    osAttach    = std::make_unique<APVTS::ComboBoxAttachment> (vts, "os",     osBox);
-    cabAttach   = std::make_unique<APVTS::ButtonAttachment>   (vts, "cabOn",  cabToggle);
+    // Create the browser (left panel)
+    browser = std::make_unique<BrowserPanel>(
+        proc.getProfileManager(),
+        proc.getCabManager(),
+        // On profile chosen:
+        [this](const juce::File& f) { proc.loadProfileAsync(f); },
+        // On cab chosen:
+        [this](const juce::File& f) { proc.loadCabAsync(f); }
+    );
+    addAndMakeVisible (*browser);
 }
+
+AmpProfilerAudioProcessorEditor::~AmpProfilerAudioProcessorEditor() = default;
+
+//==============================================================================
 
 void AmpProfilerAudioProcessorEditor::paint (juce::Graphics& g)
 {
@@ -46,6 +46,9 @@ void AmpProfilerAudioProcessorEditor::paint (juce::Graphics& g)
 void AmpProfilerAudioProcessorEditor::resized()
 {
     auto r = getLocalBounds().reduced (12);
+
+    auto left = r.removeFromLeft (260);
+    if (browser) browser->setBounds(left);
 
     inTrim.setBounds   (r.removeFromTop (30)); r.removeFromTop (8);
     outTrim.setBounds  (r.removeFromTop (30)); r.removeFromTop (8);

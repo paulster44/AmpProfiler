@@ -1,25 +1,31 @@
+// PluginEditor.h
 #pragma once
-#include <JuceHeader.h>
+#include <juce_gui_extra/juce_gui_extra.h>
 #include "PluginProcessor.h"
+#include "UI/BrowserPanel.h"
 
-class AmpProfilerAudioProcessorEditor : public juce::AudioProcessorEditor {
+//==============================================================================
+// NOTE: This assumes you already have the controls used in your UI (inTrim,
+// outTrim, osBox, cabToggle, morph). If their names differ in your project,
+// just adjust in the .cpp layout.
+class AmpProfilerAudioProcessorEditor  : public juce::AudioProcessorEditor
+{
 public:
-    explicit AmpProfilerAudioProcessorEditor (AmpProfilerAudioProcessor& p);
+    explicit AmpProfilerAudioProcessorEditor (AmpProfilerAudioProcessor&);
+    ~AmpProfilerAudioProcessorEditor() override;
 
-    void paint (juce::Graphics&) override;   // <-- add this to match your .cpp
+    void paint (juce::Graphics&) override;
     void resized() override;
 
 private:
     AmpProfilerAudioProcessor& proc;
 
+    // Your existing controls (already present in your project)
     juce::Slider inTrim, outTrim, morph;
     juce::ComboBox osBox;
-    juce::ToggleButton cabToggle { "Cab" };
+    juce::ToggleButton cabToggle;
 
-    using APVTS = juce::AudioProcessorValueTreeState;
-    std::unique_ptr<APVTS::SliderAttachment>   inAttach, outAttach, morphAttach;
-    std::unique_ptr<APVTS::ComboBoxAttachment> osAttach;
-    std::unique_ptr<APVTS::ButtonAttachment>   cabAttach;
+    std::unique_ptr<BrowserPanel> browser;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (AmpProfilerAudioProcessorEditor)
 };

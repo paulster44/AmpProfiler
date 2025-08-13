@@ -185,9 +185,23 @@ void AmpProfilerAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, 
         buffer.copyFrom (ch, 0, monoOut, 0, 0, N);
 }
 
+void AmpProfilerAudioProcessor::loadProfileAsync (const juce::File& f)
+{
+    profileManager.setCurrent(f);
+    // TODO: kick off your ONNX load here (background thread), then swap model.
+}
+
+void AmpProfilerAudioProcessor::loadCabAsync (const juce::File& f)
+{
+    cabManager.setCurrent(f);
+    // TODO: load IR into your convolution and crossfade.
+}
+
 // State (stubbed)
 void AmpProfilerAudioProcessor::getStateInformation (juce::MemoryBlock&)            {}
 void AmpProfilerAudioProcessor::setStateInformation (const void*, int)              {}
+
+
 
 // Editor + JUCE factory
 juce::AudioProcessorEditor* AmpProfilerAudioProcessor::createEditor()

@@ -4,6 +4,9 @@
 #include <vector>
 #include "Dsp/OnnxModel.h"
 #include "Dsp/PartitionedConvolver.h"
+#include "Profiles/ProfileManager.h"
+#include "Profiles/CabManager.h"
+
 
 // Forward declaration of your editor (defined in PluginEditor.h)
 class AmpProfilerAudioProcessorEditor;
@@ -45,8 +48,20 @@ public:
 
     // Access to parameters for the editor
     juce::AudioProcessorValueTreeState& getVTS()          { return apvts; }
+	
+	ProfileManager& getProfileManager() noexcept { return profileManager; }
+    CabManager&     getCabManager()     noexcept { return cabManager; }
+
+    // Optional: call these from the UI to actually load things
+    void loadProfileAsync (const juce::File& f);
+    void loadCabAsync     (const juce::File& f);
+
 
 private:
+
+	ProfileManager profileManager;
+    CabManager     cabManager;
+	
     // ---- Parameters ----
     static juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout();
     juce::AudioProcessorValueTreeState apvts { *this, nullptr, "PARAMS", createParameterLayout() };
@@ -64,6 +79,8 @@ private:
         int osDefault = 1;              // default to 1x unless profile.json overrides
         std::vector<int> osAllowed { 1, 2, 4 };
     } profile;
+	
+	
 
     // Files discovered next to the built plugin
     juce::File modelAFile, modelBFile, cabAFile, cabBFile, profileFile;
