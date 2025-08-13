@@ -96,6 +96,16 @@ void AmpProfilerAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, 
 void AmpProfilerAudioProcessor::getStateInformation (juce::MemoryBlock& dest){}
 void AmpProfilerAudioProcessor::setStateInformation (const void*, int){}
 
+bool AmpProfilerAudioProcessor::hasEditor() const
+{
+    return true;   // we do have a GUI editor
+}
+
+juce::AudioProcessorEditor* AmpProfilerAudioProcessor::createEditor()
+{
+    return new AmpProfilerAudioProcessorEditor(*this);
+}
+
 // JUCE factory required by VST3 build
 juce::AudioProcessor* JUCE_CALLTYPE createPluginFilter()
 {
