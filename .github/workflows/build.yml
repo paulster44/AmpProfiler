@@ -30,14 +30,13 @@ jobs:
         if: matrix.os == 'ubuntu-latest'
         run: |
           sudo apt-get update
-          # Core toolchain + pkg-config + zip
-          sudo apt-get install -y build-essential pkg-config zip
-          # JUCE GUI / audio / GL / fonts (fixes X11/Xlib.h not found)
           sudo apt-get install -y \
-            libx11-dev libxext-dev libxinerama-dev libxrandr-dev libxcursor-dev libxcomposite-dev \
-            libasound2-dev libfreetype6-dev libgl1-mesa-dev libglu1-mesa-dev
-          # curl for JUCE Core (we saw curl symbols earlier)
-          sudo apt-get install -y libcurl4-openssl-dev
+            build-essential pkg-config zip curl \
+            libasound2-dev libfreetype6-dev libcurl4-openssl-dev \
+            libx11-dev libxcomposite-dev libxcursor-dev libxext-dev \
+            libxinerama-dev libxrandr-dev libxrender-dev \
+            libgl1-mesa-dev libglu1-mesa-dev \
+            libgtk-3-dev
 
       - name: Get ONNX Runtime (Linux)
         if: matrix.os == 'ubuntu-latest'
