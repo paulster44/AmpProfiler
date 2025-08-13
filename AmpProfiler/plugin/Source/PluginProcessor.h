@@ -1,99 +1,89 @@
 #pragma once
 
 #include <JuceHeader.h>
-#include <vector>
-#include "Dsp/OnnxModel.h"
-#include "Dsp/PartitionedConvolver.h"
-#include "Profiles/ProfileManager.h"
-#include "Profiles/CabManager.h"
 
-
-// Forward declaration of your editor (defined in PluginEditor.h)
+// Forward-declare your editor (defined in PluginEditor.h)
 class AmpProfilerAudioProcessorEditor;
 
-// Main processor
+/**
+ * AmpProfilerAudioProcessor
+ *  - Minimal, safe JUCE processor scaffold
+ *  - Adds async file loaders used by your BrowseList/UI:
+ *      void loadAmpProfileAsync(const juce::File& file);
+ *      void loadCabIRAsync(const juce::File& file);
+ */
 class AmpProfilerAudioProcessor : public juce::AudioProcessor
 {
 public:
+    //==============================================================================
     AmpProfilerAudioProcessor();
-    ~AmpProfilerAudioProcessor() override = default;
+    ~AmpProfilerAudioProcessor() override;
 
-    // AudioProcessor overrides
+    //==============================================================================
     void prepareToPlay (double sampleRate, int samplesPerBlock) override;
-    void releaseResources() override {}
-    bool isBusesLayoutSupported (const BusesLayout& layouts) const override;
-    void processBlock (juce::AudioBuffer<float>&, juce::MidiBuffer&) override;
+    void releaseResources() override;
 
-    // Program handling (single program)
-    int getNumPrograms() override                         { return 1; }
-    int getCurrentProgram() override                      { return 0; }
-    void setCurrentProgram (int) override                 {}
-    const juce::String getProgramName (int) override      { return {}; }
+   #if ! JucePlugin_IsMidiEffect
+    bool isBusesLayoutSupported (const BusesLayout& layouts) const override;
+   #endif
+
+    void processBlock (juce::AudioBuffer<float>&, juce::MidiBuffer&) override;
+    using AudioProcessor::processBlock; // keep double version hidden warnings away
+
+    //==============================================================================
+    juce::AudioProcessorEditor* createEditor() override;
+    bool hasEditor() const override;
+
+    //==============================================================================
+    const juce::String getName() const override { return JucePlugin_Name; }
+    bool acceptsMidi() const override          { return JucePlugin_WantsMidiInput; }
+    bool producesMidi() const override         { return JucePlugin_ProducesMidiOutput; }
+    bool isMidiEffect() const override         { return JucePlugin_IsMidiEffect; }
+    double getTailLengthSeconds() const override { return 0.0; }
+
+    //==============================================================================
+    int getNumPrograms() override              { return 1; }
+    int getCurrentProgram() override           { return 0; }
+    void setCurrentProgram (int) override      {}
+    const juce::String getProgramName (int) override { return {}; }
     void changeProgramName (int, const juce::String&) override {}
 
-    // UI
-    bool hasEditor() const override                       { return true; }   // keep inline to avoid redefinition
-    juce::AudioProcessorEditor* createEditor() override;                     // implemented in .cpp
-
-    // Info
-    const juce::String getName() const override           { return "AmpProfiler"; }
-    bool acceptsMidi() const override                     { return false; }
-    bool producesMidi() const override                    { return false; }
-    bool isMidiEffect() const override                    { return false; }
-    double getTailLengthSeconds() const override          { return 0.0; }
-
-    // State
+    //==============================================================================
     void getStateInformation (juce::MemoryBlock& destData) override;
     void setStateInformation (const void* data, int sizeInBytes) override;
 
-    // Access to parameters for the editor
-    juce::AudioProcessorValueTreeState& getVTS()          { return apvts; }
-	
-	ProfileManager& getProfileManager() noexcept { return profileManager; }
-    CabManager&     getCabManager()     noexcept { return cabManager; }
+    //==============================================================================
+    // -------- NEW: async loaders BrowseList / BrowserPanel call --------
+    void loadAmpProfileAsync (const juce::File& file);
+    void loadCabIRAsync      (const juce::File& file);
 
-    // Optional: call these from the UI to actually load things
-    void loadProfileAsync (const juce::File& f);
-    void loadCabAsync     (const juce::File& f);
-
+    // (optional) simple accessors for UI
+    const juce::String& getCurrentProfilePath() const noexcept { return currentProfilePath; }
+    const juce::String& getCurrentIRPath()      const noexcept { return currentIRPath; }
 
 private:
+    //==============================================================================
+    // Synchronous workers used by the async wrappers
+    void loadAmpProfile (const juce::File& file);
+    void loadCabIR      (const juce::File& file);
 
-	ProfileManager profileManager;
-    CabManager     cabManager;
-	
-    // ---- Parameters ----
-    static juce::AudioProcessorValueTreeState::ParameterLayout createParameterLayout();
-    juce::AudioProcessorValueTreeState apvts { *this, nullptr, "PARAMS", createParameterLayout() };
+    // Convolution for cabinet IR
+    juce::dsp::Convolution cabConvolution;
+    juce::dsp::ProcessSpec processSpec {};
+    bool specPrepared = false;
 
-    // ---- Oversampling helpers ----
-    void rebuildOversampling (int factor, int samplesPerBlock);
-    int  resolveOS() const;
+    // Swap-in a prepared convolution safely while audio is running
+    juce::SpinLock convSwapLock;
 
-    // ---- Asset loading ----
-    void loadAssets();
-    void loadProfile();
+    // Simple state that UI may read
+    juce::String currentProfilePath;
+    juce::String currentIRPath;
 
-    // Profile for oversampling defaults/allowlist
-    struct Profile {
-        int osDefault = 1;              // default to 1x unless profile.json overrides
-        std::vector<int> osAllowed { 1, 2, 4 };
-    } profile;
-	
-	
+    // --- YOUR EXISTING MEMBERS (if any) ---
+    // e.g. AudioProcessorValueTreeState apvts; ONNX runtime handles; parameters…
+    // Copy them back here after pasting this file if you had them previously.
 
-    // Files discovered next to the built plugin
-    juce::File modelAFile, modelBFile, cabAFile, cabBFile, profileFile;
-
-    // DSP
-    std::unique_ptr<juce::dsp::Oversampling<float>> oversampling; // configured in prepareToPlay
-    int currentOS = 1; // 1x/2x/4x
-
-    OnnxModel modelA, modelB;
-    std::unique_ptr<PartitionedConvolver> cabA, cabB;
-
-    // Working buffers
-    juce::AudioBuffer<float> monoIn, upA, upB, downA, downB;
-
+    //==============================================================================
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (AmpProfilerAudioProcessor)
 };
+
