@@ -1,97 +1,66 @@
-// BrowseList.h
+// plugin/Source/UI/BrowseList.h
 #pragma once
-#include <juce_gui_basics/juce_gui_basics.h>
-#include "../Util/PathHelpers.h"
+#include <JuceHeader.h>
 
-// Generic ListBox wrapper for simple file lists (profiles or cabs).
-template <typename ManagerType>
-class BrowseList : public juce::Component,
-                   public juce::ListBoxModel,
-                   public juce::ChangeListener
+class AmpProfilerAudioProcessor; // fwd
+
+/** Minimal “load files” strip using JUCE 8's async FileChooser. */
+class BrowseList : public juce::Component
 {
 public:
-    using SelectFn = std::function<void(const juce::File&)>;
-
-    BrowseList (ManagerType& mgr, juce::String /*title*/, SelectFn onSelect)
-        : manager(mgr), onChosen(std::move(onSelect))
+    explicit BrowseList (AmpProfilerAudioProcessor& p)
+        : proc (p)
     {
-        manager.addChangeListener(this);
-        addAndMakeVisible(list);
-        addAndMakeVisible(rescan);
-        addAndMakeVisible(addBtn);
-
-        list.setModel(this);
-        rescan.setButtonText("Rescan");
-        addBtn.setButtonText("Add…");
-
-        rescan.onClick = [this] { manager.rescan(); };
-        addBtn.onClick = [this]
+        addAndMakeVisible (loadAmpBtn);
+        loadAmpBtn.setButtonText ("Load Amp Profile…");
+        loadAmpBtn.onClick = [this]
         {
-            juce::FileChooser fc("Choose file", juce::File(), "*");
-            if (fc.browseForFileToOpen())
-            {
-                auto chosen = fc.getResult();
-                juce::File targetFolder = pickTargetFolder();
-                auto dest = targetFolder.getChildFile(chosen.getFileName());
-                if (chosen != dest) chosen.copyFileTo(dest);
-                manager.rescan();
-            }
+            pickFile ("*.json;*.onnx", [this] (juce::File f) { proc.loadAmpProfileAsync (f); });
         };
 
-        manager.rescan();
+        addAndMakeVisible (loadCabBtn);
+        loadCabBtn.setButtonText ("Load Cabinet IR…");
+        loadCabBtn.onClick = [this]
+        {
+            pickFile ("*.wav;*.aif;*.aiff", [this] (juce::File f) { proc.loadCabIRAsync (f); });
+        };
     }
 
-    ~BrowseList() override { manager.removeChangeListener(this); }
-
-    // Layout
     void resized() override
     {
-        auto r = getLocalBounds().reduced(8);
-        auto top = r.removeFromTop(28);
-        rescan.setBounds(top.removeFromRight(90));
-        top.removeFromRight(6);
-        addBtn.setBounds(top.removeFromRight(90));
-        list.setBounds(r);
-    }
-
-    // ListBoxModel
-    int getNumRows() override { return manager.get().size(); }
-
-    void paintListBoxItem (int row, juce::Graphics& g, int width, int height, bool selected) override
-    {
-        if (! juce::isPositiveAndBelow(row, getNumRows())) return;
-        if (selected) g.fillAll(juce::Colours::darkgrey.withAlpha(0.25f));
-
-        g.setColour(juce::Colours::white);
-        g.drawText(manager.get()[row].name, 8, 0, width-16, height,
-                   juce::Justification::centredLeft, false);
-    }
-
-    void listBoxItemClicked (int row, const juce::MouseEvent&) override
-    {
-        if (! juce::isPositiveAndBelow(row, getNumRows())) return;
-        const auto& f = manager.get()[row].file;
-        manager.setCurrent(f);
-        if (onChosen) onChosen(f);
-    }
-
-    void changeListenerCallback(juce::ChangeBroadcaster*) override
-    {
-        list.updateContent();
-        repaint();
+        auto r = getLocalBounds().reduced (12);
+        loadAmpBtn.setBounds (r.removeFromTop (32));
+        r.removeFromTop (8);
+        loadCabBtn.setBounds (r.removeFromTop (32));
     }
 
 private:
-    juce::File pickTargetFolder() const
+    // JUCE 8: non-blocking file chooser. Keep it alive with a member unique_ptr.
+    void pickFile (const juce::String& wildcard, std::function<void(juce::File)> onChosen)
     {
-        if constexpr (std::is_same<ManagerType, class ProfileManager>::value)
-            return ap::getProfilesDir();
-        else
-            return ap::getCabsDir();
+        auto flags = juce::FileBrowserComponent::openMode
+                   | juce::FileBrowserComponent::canSelectFiles;
+
+        // Create with last used directory and wildcard
+        fileChooser = std::make_unique<juce::FileChooser> ("Select file", lastDir, wildcard, true);
+
+        fileChooser->launchAsync (flags, [this, cb = std::move (onChosen)] (const juce::FileChooser& fc) mutable
+        {
+            auto f = fc.getResult();
+            if (f.existsAsFile())
+            {
+                lastDir = f.getParentDirectory();
+                cb (f);
+            }
+
+            // Important: release chooser after callback returns
+            fileChooser.reset();
+        });
     }
 
-    ManagerType& manager;
-    juce::ListBox list;
-    juce::TextButton rescan, addBtn;
-    SelectFn onChosen;
+    AmpProfilerAudioProcessor& proc;
+    juce::TextButton loadAmpBtn, loadCabBtn;
+
+    juce::File lastDir { juce::File::getSpecialLocation (juce::File::userHomeDirectory) };
+    std::unique_ptr<juce::FileChooser> fileChooser; // keeps chooser alive during async op
 };
