@@ -9,7 +9,10 @@ FetchContent_MakeAvailable(juce)
 
 find_path(ONNXRUNTIME_INCLUDE_DIR onnxruntime_cxx_api.h HINTS ${ONNXRUNTIME_ROOT}/include)
 find_library(ONNXRUNTIME_LIB NAMES onnxruntime HINTS ${ONNXRUNTIME_ROOT}/lib)
-if(NOT ONNXRUNTIME_LIB) message(FATAL_ERROR "Set ONNXRUNTIME_ROOT to your onnxruntime folder"); endif()
+
+if(NOT ONNXRUNTIME_LIB)
+  message(FATAL_ERROR "Set ONNXRUNTIME_ROOT to your onnxruntime folder")
+endif()
 
 juce_add_plugin(AmpProfiler COMPANY_NAME "YourName" BUNDLE_ID com.yourname.ampprofiler IS_SYNTH FALSE
   NEEDS_MIDI_INPUT FALSE NEEDS_MIDI_OUTPUT FALSE MICROPHONE_PERMISSION_ENABLED TRUE FORMATS VST3 AU PRODUCT_NAME "AmpProfiler")

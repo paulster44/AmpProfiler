@@ -15,8 +15,9 @@ jobs:
         os: [ubuntu-latest, windows-latest, macos-latest]
 
     env:
-      SOURCE_DIR: AmpProfiler/plugin   # <- your CMakeLists.txt folder
+      SOURCE_DIR: AmpProfiler/plugin     # folder containing CMakeLists.txt
       BUILD_DIR: build
+      ORT_VERSION: 1.17.0                # change if you need a different version
 
     steps:
       - name: Check out repo (with submodules)
@@ -31,7 +32,45 @@ jobs:
 
       - name: Install dependencies (Linux only)
         if: matrix.os == 'ubuntu-latest'
-        run: sudo apt-get update && sudo apt-get install -y build-essential pkg-config
+        run: sudo apt-get update && sudo apt-get install -y build-essential pkg-config curl tar unzip
+
+      # --- Download ONNX Runtime and set ONNXRUNTIME_ROOT ---
+      - name: Get ONNX Runtime (Linux)
+        if: matrix.os == 'ubuntu-latest'
+        shell: bash
+        run: |
+          set -e
+          cd "$RUNNER_TEMP"
+          curl -L -o ort.tgz "https://github.com/microsoft/onnxruntime/releases/download/v${ORT_VERSION}/onnxruntime-linux-x64-${ORT_VERSION}.tgz"
+          mkdir -p ort && tar -xzf ort.tgz -C ort --strip-components=1
+          echo "ONNXRUNTIME_ROOT=$RUNNER_TEMP/ort" >> $GITHUB_ENV
+
+      - name: Get ONNX Runtime (macOS)
+        if: matrix.os == 'macos-latest'
+        shell: bash
+        run: |
+          set -e
+          cd "$RUNNER_TEMP"
+          curl -L -o ort.zip "https://github.com/microsoft/onnxruntime/releases/download/v${ORT_VERSION}/onnxruntime-osx-universal2-${ORT_VERSION}.zip"
+          unzip -q ort.zip -d ort
+          # unzip creates a directory; move to flat "ort"
+          mv ort/onnxruntime-osx-universal2-${ORT_VERSION}/* ort/ || true
+          echo "ONNXRUNTIME_ROOT=$RUNNER_TEMP/ort" >> $GITHUB_ENV
+
+      - name: Get ONNX Runtime (Windows)
+        if: matrix.os == 'windows-latest'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $tmp = $env:RUNNER_TEMP
+          $ver = "${{ env.ORT_VERSION }}"
+          $url = "https://github.com/microsoft/onnxruntime/releases/download/v$ver/onnxruntime-win-x64-$ver.zip"
+          Invoke-WebRequest $url -OutFile "$tmp\ort.zip"
+          Expand-Archive -Path "$tmp\ort.zip" -DestinationPath "$tmp\ort" -Force
+          # Expand-Archive creates subfolder; flatten to ...\ort
+          $sub = Get-ChildItem "$tmp\ort" | Where-Object { $_.PSIsContainer } | Select-Object -First 1
+          if ($sub) { Copy-Item "$($sub.FullName)\*" "$tmp\ort" -Recurse -Force }
+          Add-Content $env:GITHUB_ENV "ONNXRUNTIME_ROOT=$tmp\ort"
 
       - name: Verify CMakeLists exists
         shell: bash
@@ -47,7 +86,7 @@ jobs:
         run: |
           mkdir -p "$BUILD_DIR"
           cd "$BUILD_DIR"
-          cmake "../$SOURCE_DIR" -DCMAKE_BUILD_TYPE=Release
+          cmake "../$SOURCE_DIR" -DCMAKE_BUILD_TYPE=Release -DONNXRUNTIME_ROOT="${ONNXRUNTIME_ROOT}"
 
       - name: Build plugin
         shell: bash
