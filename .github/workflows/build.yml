@@ -30,7 +30,14 @@ jobs:
         if: matrix.os == 'ubuntu-latest'
         run: |
           sudo apt-get update
-          sudo apt-get install -y build-essential libcurl4-openssl-dev zip
+          # Core toolchain + pkg-config + zip
+          sudo apt-get install -y build-essential pkg-config zip
+          # JUCE GUI / audio / GL / fonts (fixes X11/Xlib.h not found)
+          sudo apt-get install -y \
+            libx11-dev libxext-dev libxinerama-dev libxrandr-dev libxcursor-dev libxcomposite-dev \
+            libasound2-dev libfreetype6-dev libgl1-mesa-dev libglu1-mesa-dev
+          # curl for JUCE Core (we saw curl symbols earlier)
+          sudo apt-get install -y libcurl4-openssl-dev
 
       - name: Get ONNX Runtime (Linux)
         if: matrix.os == 'ubuntu-latest'
@@ -80,7 +87,7 @@ jobs:
           OUT="AmpProfiler-${{ matrix.os }}.zip"
           if [ ! -e "$SRC" ]; then
             echo "::error::VST3 not found at $SRC"
-            find build -maxdepth 3 -type d -name "*VST3*" -print || true
+            find build -maxdepth 4 -type d -name "*VST3*" -print || true
             exit 1
           fi
           /usr/bin/zip -r "$OUT" "$SRC"
@@ -90,9 +97,7 @@ jobs:
         shell: pwsh
         run: |
           $src = "build/AmpProfiler_artefacts/Release/VST3/AmpProfiler.vst3"
-          if (-not (Test-Path $src)) {
-            Write-Error "VST3 not found at $src"
-          }
+          if (-not (Test-Path $src)) { throw "VST3 not found at $src" }
           Compress-Archive -Path $src -DestinationPath "AmpProfiler-windows-latest.zip" -Force
 
       - name: Upload artifact (zip)
