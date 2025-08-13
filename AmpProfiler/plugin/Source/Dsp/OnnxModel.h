@@ -15,7 +15,7 @@ public:
         Ort::SessionOptions opt;
         opt.SetGraphOptimizationLevel(GraphOptimizationLevel::ORT_ENABLE_ALL);
 
-        // Build a path string with the exact type ORT expects on this platform
+        // Use the platform-correct character type for ORT paths
         using ort_char_t = ORTCHAR_T;
         std::basic_string<ort_char_t> modelPath;
        #if defined(_WIN32)

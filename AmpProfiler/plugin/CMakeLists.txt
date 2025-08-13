@@ -54,7 +54,7 @@ target_compile_definitions(AmpProfiler PRIVATE
     JUCE_DISPLAY_SPLASH_SCREEN=0
     JUCE_WEB_BROWSER=0
     JUCE_USE_DARK_SPLASH_SCREEN=1
-    JUCE_VST3_CAN_REPLACE_VST2=0   # <-- key line to fix your error
+    JUCE_VST3_CAN_REPLACE_VST2=0   # stop JUCE from pulling old VST2 headers
 )
 
 target_include_directories(AmpProfiler PRIVATE
@@ -68,7 +68,17 @@ target_link_libraries(AmpProfiler PRIVATE
     juce::juce_dsp
 )
 
-# Post-build (skip Models copy in CI)
+# Linux: link libcurl (fixes undefined curl_* on Ubuntu)
+if(UNIX AND NOT APPLE)
+  find_package(CURL)
+  if (CURL_FOUND)
+    target_link_libraries(AmpProfiler PRIVATE CURL::libcurl)
+  else()
+    target_link_libraries(AmpProfiler PRIVATE curl)
+  endif()
+endif()
+
+# Post-build copies (skip Models in CI to avoid flakiness)
 add_custom_command(TARGET AmpProfiler POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_FILE_DIR:AmpProfiler>"
 )

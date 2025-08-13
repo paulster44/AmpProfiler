@@ -95,3 +95,9 @@ void AmpProfilerAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, 
 }
 void AmpProfilerAudioProcessor::getStateInformation (juce::MemoryBlock& dest){}
 void AmpProfilerAudioProcessor::setStateInformation (const void*, int){}
+
+// JUCE factory required by VST3 build
+juce::AudioProcessor* JUCE_CALLTYPE createPluginFilter()
+{
+    return new AmpProfilerAudioProcessor(); // <-- use your exact processor class name
+}
