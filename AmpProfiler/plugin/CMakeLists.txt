@@ -18,8 +18,6 @@ FetchContent_MakeAvailable(juce)
 
 # -----------------------
 # ONNX Runtime discovery
-# Expect ONNXRUNTIME_ROOT to point to a folder containing /include and /lib
-# (The workflow sets this env var per-OS.)
 # -----------------------
 if(NOT DEFINED ONNXRUNTIME_ROOT AND DEFINED ENV{ONNXRUNTIME_ROOT})
   set(ONNXRUNTIME_ROOT $ENV{ONNXRUNTIME_ROOT})
@@ -30,7 +28,6 @@ find_path(ONNXRUNTIME_INCLUDE_DIR
   HINTS "${ONNXRUNTIME_ROOT}/include"
 )
 
-# On Windows it's onnxruntime.lib; on Linux/macOS it's libonnxruntime.*
 find_library(ONNXRUNTIME_LIB
   NAMES onnxruntime
   HINTS "${ONNXRUNTIME_ROOT}/lib"
@@ -50,7 +47,7 @@ juce_add_plugin(AmpProfiler
     NEEDS_MIDI_INPUT FALSE
     NEEDS_MIDI_OUTPUT FALSE
     MICROPHONE_PERMISSION_ENABLED TRUE
-    FORMATS VST3
+    FORMATS VST3              # keep CI simple; add AU locally if desired
     PRODUCT_NAME "AmpProfiler"
 )
 
@@ -87,16 +84,29 @@ target_link_libraries(AmpProfiler PRIVATE
 )
 
 # -----------------------
-# Post-build: copy resources next to the built plugin
+# Post-build: copy resources if they exist
 # -----------------------
+# Ensure destination exists
 add_custom_command(TARGET AmpProfiler POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy_directory
-            "${CMAKE_CURRENT_SOURCE_DIR}/Source/Models"
-            "$<TARGET_FILE_DIR:AmpProfiler>/Models"
+    COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_FILE_DIR:AmpProfiler>/Models"
 )
 
-add_custom_command(TARGET AmpProfiler POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different
-            "${CMAKE_CURRENT_SOURCE_DIR}/resources/default_cab_ir.wav"
-            "$<TARGET_FILE_DIR:AmpProfiler>/default_cab_ir.wav"
-)
+# Copy Models folder (guard if it exists)
+if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/Source/Models")
+  add_custom_command(TARGET AmpProfiler POST_BUILD
+      COMMAND ${CMAKE_COMMAND} -E copy_directory
+              "${CMAKE_CURRENT_SOURCE_DIR}/Source/Models"
+              "$<TARGET_FILE_DIR:AmpProfiler>/Models"
+      COMMENT "Copying Models directory"
+  )
+endif()
+
+# Copy default IR (guard if it exists)
+if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/resources/default_cab_ir.wav")
+  add_custom_command(TARGET AmpProfiler POST_BUILD
+      COMMAND ${CMAKE_COMMAND} -E copy_if_different
+              "${CMAKE_CURRENT_SOURCE_DIR}/resources/default_cab_ir.wav"
+              "$<TARGET_FILE_DIR:AmpProfiler>/default_cab_ir.wav"
+      COMMENT "Copying default_cab_ir.wav"
+  )
+endif()

@@ -13,7 +13,14 @@ public:
 
         Ort::SessionOptions opt;
         opt.SetGraphOptimizationLevel(GraphOptimizationLevel::ORT_ENABLE_ALL);
-        session = std::make_unique<Ort::Session>(*env, onnxFile.getFullPathName().toRawUTF8(), opt);
+
+        // ONNX Runtime wants a wide-char path on Windows, UTF-8 elsewhere
+       #if defined(_WIN32)
+        const wchar_t* modelPath = onnxFile.getFullPathName().toWideCharPointer();
+       #else
+        const char*    modelPath = onnxFile.getFullPathName().toRawUTF8();
+       #endif
+        session = std::make_unique<Ort::Session>(*env, modelPath, opt);
 
         Ort::AllocatorWithDefaultOptions alloc;
         inputName  = session->GetInputNameAllocated(0, alloc).get();
@@ -30,9 +37,9 @@ public:
         const int T = (int)cfg.context + num;
 
         tmp.setSize(1, T);
-        // buffer -> buffer copy: destCh, destStart, srcBuf, srcCh, srcStart, numSamples
+        // buffer -> buffer (6 args)
         tmp.copyFrom(0, 0, ctx, 0, 0, (int)cfg.context);
-        // pointer -> buffer copy: destCh, destStart, srcPtr, numSamples
+        // pointer -> buffer (4 args)
         tmp.copyFrom(0, (int)cfg.context, samples, num);
 
         std::array<int64_t, 2> shape{ 1, (int64_t)T };
@@ -48,7 +55,7 @@ public:
         float* y = out.front().GetTensorMutableData<float>();
         std::memcpy(samples, y + cfg.context, sizeof(float) * (size_t)num);
 
-        // Update rolling context with the tail of the current input
+        // Update rolling context with tail of input
         ctx.setSize(1, (int)cfg.context);
         std::memcpy(ctx.getWritePointer(0),
                     dataIn + (T - (int)cfg.context),
