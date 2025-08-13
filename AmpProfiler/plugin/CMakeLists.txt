@@ -73,6 +73,7 @@ target_compile_definitions(AmpProfiler PRIVATE
     JUCE_DISPLAY_SPLASH_SCREEN=0
     JUCE_WEB_BROWSER=0
     JUCE_USE_DARK_SPLASH_SCREEN=1
+	JUCE_VST3_CAN_REPLACE_VST2=0
 )
 
 target_include_directories(AmpProfiler PRIVATE
