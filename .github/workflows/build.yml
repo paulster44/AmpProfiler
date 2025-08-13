@@ -14,48 +14,70 @@ jobs:
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
 
+    env:
+      # 👇👇 CHANGE THIS to the folder that actually contains CMakeLists.txt
+      SOURCE_DIR: AmpProfiler
+      BUILD_DIR: build
+
     steps:
-      - name: Check out repo
+      - name: Check out repo (with submodules)
         uses: actions/checkout@v4
+        with:
+          submodules: recursive   # pulls JUCE/VST3 SDK if included as submodules
 
       - name: Set up CMake
         uses: jwlawson/actions-setup-cmake@v1.13
         with:
           cmake-version: '3.27.7'
 
+      # Toolchain bits
       - name: Install dependencies (Linux only)
         if: matrix.os == 'ubuntu-latest'
-        run: sudo apt-get update && sudo apt-get install -y build-essential
+        run: sudo apt-get update && sudo apt-get install -y build-essential pkg-config
 
-      # Configure from the AmpProfiler subfolder
+      - name: Show tree for debugging
+        shell: bash
+        run: |
+          echo "Repo root structure:"
+          ls -la
+          echo "SOURCE_DIR=$SOURCE_DIR contents:"
+          ls -la "$SOURCE_DIR" || true
+
+      - name: Verify CMakeLists exists
+        shell: bash
+        run: |
+          test -f "$SOURCE_DIR/CMakeLists.txt" || { 
+            echo "::error file=$SOURCE_DIR::CMakeLists.txt not found. Set SOURCE_DIR to the folder that contains it."; 
+            exit 1; 
+          }
+
       - name: Configure CMake
         shell: bash
         run: |
-          mkdir -p build
-          cd build
-          cmake ../AmpProfiler -DCMAKE_BUILD_TYPE=Release
+          mkdir -p "$BUILD_DIR"
+          cd "$BUILD_DIR"
+          cmake "../$SOURCE_DIR" -DCMAKE_BUILD_TYPE=Release
 
       - name: Build plugin
         shell: bash
         run: |
-          cd build
+          cd "$BUILD_DIR"
           cmake --build . --config Release
 
-      # Package the .vst3 into a zip for easy download
       - name: Package plugin (.zip)
         shell: bash
         run: |
           set -e
           mkdir -p packages
           shopt -s globstar nullglob
-          # Find the first produced .vst3 and copy it to a stable name
           vst3_found=""
-          for f in build/**/*.vst3; do
-            vst3_found="$f"
-            break
+          for f in "$BUILD_DIR"/**/*.vst3; do
+            vst3_found="$f"; break
           done
           if [ -z "$vst3_found" ]; then
-            echo "No .vst3 produced under build/**.vst3"; ls -R build || true
+            echo "::error::No .vst3 produced under $BUILD_DIR/**.vst3"
+            echo "==== Build dir listing ===="
+            ls -R "$BUILD_DIR" || true
             exit 1
           fi
           echo "Found VST3: $vst3_found"
