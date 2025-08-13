@@ -36,8 +36,10 @@ jobs:
       - name: Verify CMakeLists exists
         shell: bash
         run: |
+          echo "SOURCE_DIR=$SOURCE_DIR"
           test -f "$SOURCE_DIR/CMakeLists.txt" || { 
-            echo "::error file=$SOURCE_DIR::CMakeLists.txt not found."; exit 1; 
+            echo "::error file=$SOURCE_DIR::CMakeLists.txt not found. Check SOURCE_DIR."; 
+            exit 1; 
           }
 
       - name: Configure CMake
