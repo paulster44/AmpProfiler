@@ -25,7 +25,7 @@ jobs:
         with:
           cmake-version: '3.27.7'
 
-      # ---------- deps / ONNX Runtime ----------
+      # ---------- Dependencies & ONNX Runtime ----------
       - name: Install dependencies (Linux only)
         if: matrix.os == 'ubuntu-latest'
         run: |
@@ -61,16 +61,16 @@ jobs:
           Expand-Archive -Path ort.zip -DestinationPath .
           echo "ONNXRUNTIME_ROOT=$PWD\onnxruntime-win-x64-$ver" >> $env:GITHUB_ENV
 
-      # ---------- configure & build ----------
+      # ---------- Configure & Build ----------
       - name: Configure CMake
         shell: bash
-        run: cmake -S . -B build -D CMAKE_BUILD_TYPE=Release
+        run: cmake -S AmpProfiler/plugin -B build -D CMAKE_BUILD_TYPE=Release
 
       - name: Build plugin
         shell: bash
         run: cmake --build build --config Release --parallel
 
-      # ---------- package ----------
+      # ---------- Package ----------
       - name: Package plugin (.zip) – macOS & Linux
         if: matrix.os != 'windows-latest'
         shell: bash
@@ -80,7 +80,7 @@ jobs:
           OUT="AmpProfiler-${{ matrix.os }}.zip"
           if [ ! -e "$SRC" ]; then
             echo "::error::VST3 not found at $SRC"
-            ls -la build || true
+            find build -maxdepth 3 -type d -name "*VST3*" -print || true
             exit 1
           fi
           /usr/bin/zip -r "$OUT" "$SRC"
